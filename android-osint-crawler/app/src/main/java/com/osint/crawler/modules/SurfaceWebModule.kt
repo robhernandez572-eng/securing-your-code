@@ -8,11 +8,6 @@ import org.jsoup.nodes.Document
 import java.io.IOException
 import java.util.regex.Pattern
 
-/**
- * Surface web crawler — uses OkHttp to fetch pages and JSoup to parse HTML.
- * Extracts links, emails, phones, metadata, social profiles, documents, and
- * API endpoints from JavaScript.
- */
 class SurfaceWebModule(private val config: ScanConfig) {
 
     private val client = HttpClientFactory.surfaceClient(config.userAgent)
@@ -44,18 +39,24 @@ class SurfaceWebModule(private val config: ScanConfig) {
         modules: List<CrawlerModule>,
         onResult: suspend (ScanResult) -> Unit
     ): Set<String> {
+        val doc = fetchDocument(url) ?: return emptySet()
         val discoveredLinks = mutableSetOf<String>()
-        val doc = fetchDocument(url) ?: return discoveredLinks
 
-        if (CrawlerModule.SURFACE_META in modules) extractMeta(url, doc, onResult)
-        if (CrawlerModule.SURFACE_LINKS in modules) extractLinks(url, doc, discoveredLinks, onResult)
-        if (CrawlerModule.SURFACE_EMAILS in modules) extractEmails(url, doc, onResult)
-        if (CrawlerModule.SURFACE_PHONES in modules) extractPhones(url, doc, onResult)
-        if (CrawlerModule.SURFACE_SOCIAL in modules) extractSocial(url, doc, onResult)
-        if (CrawlerModule.SURFACE_DOCUMENTS in modules) extractDocuments(url, doc, onResult)
-        if (CrawlerModule.SURFACE_FORMS in modules) extractForms(url, doc, onResult)
-        if (CrawlerModule.SURFACE_JS_ENDPOINTS in modules) extractJsEndpoints(url, doc, onResult)
-        if (CrawlerModule.SURFACE_DNS_LEAKS in modules) extractIpRefs(url, doc, onResult)
+        val results = mutableListOf<ScanResult>()
+
+        if (CrawlerModule.SURFACE_META in modules) results += collectMeta(url, doc)
+        if (CrawlerModule.SURFACE_LINKS in modules) results += collectLinks(url, doc, discoveredLinks)
+        if (CrawlerModule.SURFACE_EMAILS in modules) results += collectEmails(url, doc)
+        if (CrawlerModule.SURFACE_PHONES in modules) results += collectPhones(url, doc)
+        if (CrawlerModule.SURFACE_SOCIAL in modules) results += collectSocial(url, doc)
+        if (CrawlerModule.SURFACE_DOCUMENTS in modules) results += collectDocuments(url, doc)
+        if (CrawlerModule.SURFACE_FORMS in modules) results += collectForms(url, doc)
+        if (CrawlerModule.SURFACE_JS_ENDPOINTS in modules) results += collectJsEndpoints(url, doc)
+        if (CrawlerModule.SURFACE_DNS_LEAKS in modules) results += collectIpRefs(url, doc)
+
+        for (result in results) {
+            onResult(result)
+        }
 
         return discoveredLinks
     }
@@ -72,7 +73,7 @@ class SurfaceWebModule(private val config: ScanConfig) {
         }
     }
 
-    private suspend fun extractMeta(url: String, doc: Document, onResult: suspend (ScanResult) -> Unit) {
+    private fun collectMeta(url: String, doc: Document): List<ScanResult> {
         val title = doc.title()
         val desc = doc.select("meta[name=description]").attr("content")
         val keywords = doc.select("meta[name=keywords]").attr("content")
@@ -88,9 +89,9 @@ class SurfaceWebModule(private val config: ScanConfig) {
             if (generator.isNotBlank()) append("Generator: $generator\n")
         }
 
-        if (meta.isBlank()) return
+        if (meta.isBlank()) return emptyList()
 
-        onResult(ScanResult(
+        return listOf(ScanResult(
             target = url,
             sourceType = SourceType.SURFACE_WEB,
             resultType = ResultType.RAW_TEXT,
@@ -109,16 +110,13 @@ class SurfaceWebModule(private val config: ScanConfig) {
         ))
     }
 
-    private suspend fun extractLinks(
-        url: String, doc: Document,
-        discoveredLinks: MutableSet<String>,
-        onResult: suspend (ScanResult) -> Unit
-    ) {
-        doc.select("a[href]").forEach { el ->
+    private fun collectLinks(url: String, doc: Document, discoveredLinks: MutableSet<String>): List<ScanResult> {
+        val results = mutableListOf<ScanResult>()
+        for (el in doc.select("a[href]")) {
             val href = el.absUrl("href")
-            if (href.isBlank() || href.startsWith("javascript:") || href.startsWith("mailto:")) return@forEach
+            if (href.isBlank() || href.startsWith("javascript:") || href.startsWith("mailto:")) continue
             discoveredLinks.add(href)
-            onResult(ScanResult(
+            results.add(ScanResult(
                 target = url,
                 sourceType = SourceType.SURFACE_WEB,
                 resultType = ResultType.URL,
@@ -128,16 +126,18 @@ class SurfaceWebModule(private val config: ScanConfig) {
                 snippet = "Link found on $url"
             ))
         }
+        return results
     }
 
-    private suspend fun extractEmails(url: String, doc: Document, onResult: suspend (ScanResult) -> Unit) {
+    private fun collectEmails(url: String, doc: Document): List<ScanResult> {
+        val results = mutableListOf<ScanResult>()
         val text = doc.text() + " " + doc.html()
         val found = mutableSetOf<String>()
         val m = emailPattern.matcher(text)
         while (m.find()) {
             val email = m.group()
             if (found.add(email)) {
-                onResult(ScanResult(
+                results.add(ScanResult(
                     target = url,
                     sourceType = SourceType.SURFACE_WEB,
                     resultType = ResultType.EMAIL,
@@ -148,11 +148,10 @@ class SurfaceWebModule(private val config: ScanConfig) {
                 ))
             }
         }
-        // Also check mailto: links
-        doc.select("a[href^=mailto]").forEach { el ->
+        for (el in doc.select("a[href^=mailto]")) {
             val email = el.attr("href").removePrefix("mailto:").substringBefore("?")
             if (email.contains("@") && found.add(email)) {
-                onResult(ScanResult(
+                results.add(ScanResult(
                     target = url,
                     sourceType = SourceType.SURFACE_WEB,
                     resultType = ResultType.EMAIL,
@@ -163,16 +162,17 @@ class SurfaceWebModule(private val config: ScanConfig) {
                 ))
             }
         }
+        return results
     }
 
-    private suspend fun extractPhones(url: String, doc: Document, onResult: suspend (ScanResult) -> Unit) {
-        val text = doc.text()
+    private fun collectPhones(url: String, doc: Document): List<ScanResult> {
+        val results = mutableListOf<ScanResult>()
         val found = mutableSetOf<String>()
-        val m = phonePattern.matcher(text)
+        val m = phonePattern.matcher(doc.text())
         while (m.find()) {
             val phone = m.group()
             if (found.add(phone)) {
-                onResult(ScanResult(
+                results.add(ScanResult(
                     target = url,
                     sourceType = SourceType.SURFACE_WEB,
                     resultType = ResultType.PHONE,
@@ -183,17 +183,19 @@ class SurfaceWebModule(private val config: ScanConfig) {
                 ))
             }
         }
+        return results
     }
 
-    private suspend fun extractSocial(url: String, doc: Document, onResult: suspend (ScanResult) -> Unit) {
+    private fun collectSocial(url: String, doc: Document): List<ScanResult> {
+        val results = mutableListOf<ScanResult>()
         val html = doc.html()
-        socialPatterns.forEach { (platform, pattern) ->
+        for ((platform, pattern) in socialPatterns) {
             val m = pattern.matcher(html)
             val found = mutableSetOf<String>()
             while (m.find()) {
                 val profileUrl = m.group()
                 if (found.add(profileUrl)) {
-                    onResult(ScanResult(
+                    results.add(ScanResult(
                         target = url,
                         sourceType = SourceType.SURFACE_WEB,
                         resultType = ResultType.SOCIAL_MEDIA,
@@ -206,14 +208,16 @@ class SurfaceWebModule(private val config: ScanConfig) {
                 }
             }
         }
+        return results
     }
 
-    private suspend fun extractDocuments(url: String, doc: Document, onResult: suspend (ScanResult) -> Unit) {
-        doc.select("a[href]").forEach { el ->
+    private fun collectDocuments(url: String, doc: Document): List<ScanResult> {
+        val results = mutableListOf<ScanResult>()
+        for (el in doc.select("a[href]")) {
             val href = el.absUrl("href")
             val ext = href.substringAfterLast('.').lowercase().substringBefore('?')
             if (ext in docExtensions) {
-                onResult(ScanResult(
+                results.add(ScanResult(
                     target = url,
                     sourceType = SourceType.SURFACE_WEB,
                     resultType = ResultType.DOCUMENT,
@@ -225,16 +229,17 @@ class SurfaceWebModule(private val config: ScanConfig) {
                 ))
             }
         }
+        return results
     }
 
-    private suspend fun extractForms(url: String, doc: Document, onResult: suspend (ScanResult) -> Unit) {
-        doc.select("form").forEach { form ->
+    private fun collectForms(url: String, doc: Document): List<ScanResult> {
+        val results = mutableListOf<ScanResult>()
+        for (form in doc.select("form")) {
             val action = form.absUrl("action").ifBlank { url }
             val method = form.attr("method").uppercase().ifBlank { "GET" }
             val inputs = form.select("input").map { "${it.attr("type")}:${it.attr("name")}" }
             val hasPassword = inputs.any { it.startsWith("password") }
-
-            onResult(ScanResult(
+            results.add(ScanResult(
                 target = url,
                 sourceType = SourceType.SURFACE_WEB,
                 resultType = ResultType.URL,
@@ -250,11 +255,13 @@ class SurfaceWebModule(private val config: ScanConfig) {
                 )
             ))
         }
+        return results
     }
 
-    private suspend fun extractJsEndpoints(url: String, doc: Document, onResult: suspend (ScanResult) -> Unit) {
+    private fun collectJsEndpoints(url: String, doc: Document): List<ScanResult> {
+        val results = mutableListOf<ScanResult>()
         val scripts = doc.select("script[src]").map { it.absUrl("src") }
-        scripts.forEach { scriptUrl ->
+        for (scriptUrl in scripts) {
             try {
                 val req = Request.Builder().url(scriptUrl).build()
                 client.newCall(req).execute().use { resp ->
@@ -264,7 +271,7 @@ class SurfaceWebModule(private val config: ScanConfig) {
                     while (m.find()) {
                         val endpoint = m.group(1) ?: continue
                         if (found.add(endpoint)) {
-                            onResult(ScanResult(
+                            results.add(ScanResult(
                                 target = url,
                                 sourceType = SourceType.SURFACE_WEB,
                                 resultType = ResultType.URL,
@@ -279,18 +286,18 @@ class SurfaceWebModule(private val config: ScanConfig) {
                 }
             } catch (_: IOException) {}
         }
+        return results
     }
 
-    private suspend fun extractIpRefs(url: String, doc: Document, onResult: suspend (ScanResult) -> Unit) {
-        val text = doc.html()
+    private fun collectIpRefs(url: String, doc: Document): List<ScanResult> {
+        val results = mutableListOf<ScanResult>()
         val found = mutableSetOf<String>()
-        val m = ipPattern.matcher(text)
+        val m = ipPattern.matcher(doc.html())
         while (m.find()) {
             val ip = m.group()
-            // Skip common private/loopback ranges that are uninteresting
             if (ip.startsWith("127.") || ip.startsWith("0.") || ip == "255.255.255.255") continue
             if (found.add(ip)) {
-                onResult(ScanResult(
+                results.add(ScanResult(
                     target = url,
                     sourceType = SourceType.SURFACE_WEB,
                     resultType = ResultType.IP_ADDRESS,
@@ -301,5 +308,6 @@ class SurfaceWebModule(private val config: ScanConfig) {
                 ))
             }
         }
+        return results
     }
 }

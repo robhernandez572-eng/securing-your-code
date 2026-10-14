@@ -3,22 +3,11 @@ package com.osint.crawler.modules
 import com.osint.crawler.models.*
 import com.osint.crawler.utils.HttpClientFactory
 import okhttp3.Request
+import okhttp3.Response
 import org.jsoup.Jsoup
 import java.io.IOException
 import java.util.regex.Pattern
 
-/**
- * Dark web / .onion crawler.
- *
- * REQUIRES Orbot (Tor for Android) to be installed and running on the device.
- * All requests are routed through the Orbot SOCKS5 proxy at 127.0.0.1:9050.
- * .onion hostnames are resolved by the Tor network — they never hit Android DNS.
- *
- * Usage:
- *   1. Install Orbot from F-Droid or Google Play.
- *   2. Start Orbot and enable VPN or SOCKS5 mode.
- *   3. Enable "Dark Web" in the app settings and set the proxy port (default 9050).
- */
 class DarkWebModule(private val config: ScanConfig) {
 
     private val client = HttpClientFactory.torClient(
@@ -35,7 +24,6 @@ class DarkWebModule(private val config: ScanConfig) {
         "[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}"
     )
 
-    // Patterns for detecting marketplace / forum indicators
     private val marketplaceKeywords = listOf(
         "add to cart", "checkout", "vendor", "escrow", "pgp", "monero", "bitcoin",
         "listings", "marketplace", "shop", "price", "btc", "xmr"
@@ -44,6 +32,24 @@ class DarkWebModule(private val config: ScanConfig) {
         "thread", "post", "reply", "forum", "board", "register", "login", "topic"
     )
 
+    private data class PageData(
+        val body: String,
+        val statusCode: Int,
+        val contentLength: Long
+    )
+
+    private fun fetchPage(url: String): PageData? {
+        return try {
+            val request = Request.Builder().url(url).build()
+            client.newCall(request).execute().use { response ->
+                val body = response.body?.string() ?: return null
+                PageData(body, response.code, response.body?.contentLength() ?: -1)
+            }
+        } catch (e: IOException) {
+            null
+        }
+    }
+
     suspend fun crawlOnionUrl(
         url: String,
         modules: List<CrawlerModule>,
@@ -51,42 +57,11 @@ class DarkWebModule(private val config: ScanConfig) {
         onResult: suspend (ScanResult) -> Unit
     ): Set<String> {
         val discoveredOnions = mutableSetOf<String>()
-
         val normalizedUrl = if (!url.startsWith("http")) "http://$url" else url
 
-        try {
-            val request = Request.Builder().url(normalizedUrl).build()
-            client.newCall(request).execute().use { response ->
-                val body = response.body?.string() ?: return discoveredOnions
-                val doc = Jsoup.parse(body, normalizedUrl)
+        val pageData = fetchPage(normalizedUrl)
 
-                if (CrawlerModule.TOR_CONTENT_SCAN in modules) {
-                    extractOnionContent(normalizedUrl, doc, onResult)
-                }
-                if (CrawlerModule.TOR_HIDDEN_SERVICES in modules) {
-                    extractOnionLinks(normalizedUrl, body, discoveredOnions, onResult)
-                }
-                if (CrawlerModule.TOR_MARKETPLACE_DETECT in modules) {
-                    detectSiteType(normalizedUrl, doc, onResult)
-                }
-
-                // Emit a primary result for the onion page itself
-                onResult(ScanResult(
-                    target = url,
-                    sourceType = SourceType.DARK_WEB_ONION,
-                    resultType = ResultType.ONION_SERVICE,
-                    module = CrawlerModule.TOR_ONION_CRAWLER.displayName,
-                    title = doc.title().ifBlank { normalizedUrl },
-                    url = normalizedUrl,
-                    snippet = doc.body()?.text()?.take(300) ?: "No content",
-                    metadata = mapOf(
-                        "http_status" to response.code.toString(),
-                        "content_length" to (response.body?.contentLength()?.toString() ?: "unknown"),
-                        "depth" to depth.toString()
-                    )
-                ))
-            }
-        } catch (e: IOException) {
+        if (pageData == null) {
             onResult(ScanResult(
                 target = url,
                 sourceType = SourceType.DARK_WEB_ONION,
@@ -94,10 +69,38 @@ class DarkWebModule(private val config: ScanConfig) {
                 module = CrawlerModule.TOR_ONION_CRAWLER.displayName,
                 title = "Onion Unreachable",
                 url = normalizedUrl,
-                snippet = "Could not reach $url — ${e.message}\n\nMake sure Orbot is running and connected.",
-                rawData = e.toString()
+                snippet = "Could not reach $url — Make sure Orbot is running and connected.",
+                rawData = "fetch failed"
             ))
+            return discoveredOnions
         }
+
+        val doc = Jsoup.parse(pageData.body, normalizedUrl)
+
+        if (CrawlerModule.TOR_CONTENT_SCAN in modules) {
+            extractOnionContent(normalizedUrl, doc, onResult)
+        }
+        if (CrawlerModule.TOR_HIDDEN_SERVICES in modules) {
+            extractOnionLinks(normalizedUrl, pageData.body, discoveredOnions, onResult)
+        }
+        if (CrawlerModule.TOR_MARKETPLACE_DETECT in modules) {
+            detectSiteType(normalizedUrl, doc, onResult)
+        }
+
+        onResult(ScanResult(
+            target = url,
+            sourceType = SourceType.DARK_WEB_ONION,
+            resultType = ResultType.ONION_SERVICE,
+            module = CrawlerModule.TOR_ONION_CRAWLER.displayName,
+            title = doc.title().ifBlank { normalizedUrl },
+            url = normalizedUrl,
+            snippet = doc.body()?.text()?.take(300) ?: "No content",
+            metadata = mapOf(
+                "http_status" to pageData.statusCode.toString(),
+                "content_length" to pageData.contentLength.toString(),
+                "depth" to depth.toString()
+            )
+        ))
 
         return discoveredOnions
     }
@@ -133,7 +136,6 @@ class DarkWebModule(private val config: ScanConfig) {
         doc: org.jsoup.nodes.Document,
         onResult: suspend (ScanResult) -> Unit
     ) {
-        // Extract emails
         val text = doc.text()
         val emailMatcher = emailPattern.matcher(text)
         val seenEmails = mutableSetOf<String>()
@@ -152,22 +154,21 @@ class DarkWebModule(private val config: ScanConfig) {
             }
         }
 
-        // Extract headings and key text blocks
         doc.select("h1, h2, h3").forEach { heading ->
             val headingText = heading.text().trim()
-            if (headingText.isBlank()) return@forEach
-            onResult(ScanResult(
-                target = url,
-                sourceType = SourceType.DARK_WEB_ONION,
-                resultType = ResultType.RAW_TEXT,
-                module = CrawlerModule.TOR_CONTENT_SCAN.displayName,
-                title = "<${heading.tagName().uppercase()}> $headingText",
-                url = url,
-                snippet = headingText
-            ))
+            if (headingText.isNotBlank()) {
+                onResult(ScanResult(
+                    target = url,
+                    sourceType = SourceType.DARK_WEB_ONION,
+                    resultType = ResultType.RAW_TEXT,
+                    module = CrawlerModule.TOR_CONTENT_SCAN.displayName,
+                    title = "<${heading.tagName().uppercase()}> $headingText",
+                    url = url,
+                    snippet = headingText
+                ))
+            }
         }
 
-        // Check for PGP keys
         if (text.contains("-----BEGIN PGP PUBLIC KEY BLOCK-----")) {
             onResult(ScanResult(
                 target = url,

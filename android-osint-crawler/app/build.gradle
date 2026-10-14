@@ -83,6 +83,9 @@ dependencies {
     implementation 'androidx.room:room-ktx:2.6.1'
     annotationProcessor 'androidx.room:room-compiler:2.6.1'
 
+    // Preferences
+    implementation 'androidx.preference:preference-ktx:1.2.1'
+
     // CSV export
     implementation 'com.opencsv:opencsv:5.8'
 
