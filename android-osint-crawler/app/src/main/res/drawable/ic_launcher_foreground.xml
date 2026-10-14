@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- Spider/web icon for OSINT crawler -->
+    <path android:fillColor="#FFFFFF"
+        android:pathData="M54,38 C45.16,38 38,45.16 38,54 C38,62.84 45.16,70 54,70 C62.84,70 70,62.84 70,54 C70,45.16 62.84,38 54,38Z M54,64 C48.48,64 44,59.52 44,54 C44,48.48 48.48,44 54,44 C59.52,44 64,48.48 64,54 C64,59.52 59.52,64 54,64Z"/>
+    <!-- Search handle -->
+    <path android:fillColor="#FFFFFF"
+        android:pathData="M66,63 L74,71 L71,74 L63,66 Z"/>
+</vector>

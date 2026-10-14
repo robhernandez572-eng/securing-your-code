@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">OSINT Crawler</string>
+    <string name="app_description">Surface web, Wayback Machine, and Dark Web OSINT crawler</string>
+    <string name="pref_tor_host">tor_host</string>
+    <string name="pref_tor_port">tor_port</string>
+    <string name="pref_user_agent">user_agent</string>
+    <string name="pref_timeout">connection_timeout</string>
+</resources>
