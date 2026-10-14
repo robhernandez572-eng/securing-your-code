@@ -60,7 +60,7 @@ class NewScanFragment : Fragment() {
             // Category header
             val header = TextView(requireContext()).apply {
                 text = category
-                setTextAppearance(com.google.android.material.R.style.TextAppearance_MaterialComponents_Caption)
+                setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_LabelLarge)
                 setPadding(0, 24, 0, 8)
             }
             binding.moduleContainer.addView(header)
