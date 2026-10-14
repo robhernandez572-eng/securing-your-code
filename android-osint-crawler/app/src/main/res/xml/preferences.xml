@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <PreferenceCategory android:title="Tor / Dark Web">
+
+        <EditTextPreference
+            android:key="tor_host"
+            android:title="Orbot SOCKS5 Host"
+            android:summary="Default: 127.0.0.1 (Orbot on-device)"
+            android:defaultValue="127.0.0.1" />
+
+        <EditTextPreference
+            android:key="tor_port"
+            android:title="Orbot SOCKS5 Port"
+            android:summary="Default: 9050"
+            android:defaultValue="9050"
+            android:inputType="number" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory android:title="Crawl Behavior">
+
+        <EditTextPreference
+            android:key="user_agent"
+            android:title="User Agent"
+            android:summary="HTTP User-Agent header sent to servers"
+            android:defaultValue="Mozilla/5.0 (compatible; OSINTCrawler/1.0)" />
+
+        <EditTextPreference
+            android:key="connection_timeout"
+            android:title="Connection Timeout (seconds)"
+            android:defaultValue="30"
+            android:inputType="number" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory android:title="About">
+
+        <Preference
+            android:key="about_version"
+            android:title="Version"
+            android:summary="1.0.0" />
+
+        <Preference
+            android:key="about_note"
+            android:title="Usage Notice"
+            android:summary="This tool is for authorized security research and OSINT investigation only. Dark web crawling requires Orbot (Tor for Android) installed and connected." />
+
+    </PreferenceCategory>
+
+</PreferenceScreen>
