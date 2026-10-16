@@ -1,0 +1,2 @@
+-keep class com.hackpath.app.data.model.** { *; }
+-keepclassmembers class com.hackpath.app.data.model.** { *; }
