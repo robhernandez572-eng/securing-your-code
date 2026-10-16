@@ -636,12 +636,12 @@ kill -9 <PID>        # force kill process
 # Simple network recon script (run on systems you own or have permission)
 
 TARGET="192.168.1.0/24"
-echo "[*] Scanning $TARGET"
+echo "[*] Scanning ${'$'}TARGET"
 
 # Ping sweep
 for i in {1..254}; do
-    ip="192.168.1.$i"
-    ping -c1 -W1 "$ip" > /dev/null 2>&1 && echo "[+] Host up: $ip" &
+    ip="192.168.1.${'$'}i"
+    ping -c1 -W1 "${'$'}ip" > /dev/null 2>&1 && echo "[+] Host up: ${'$'}ip" &
 done
 wait
 
@@ -651,7 +651,7 @@ check_port() {
 }
 echo "[*] Checking common ports on 192.168.1.1"
 for port in 22 80 443 3306 8080; do
-    check_port 192.168.1.1 $port
+    check_port 192.168.1.1 ${'$'}port
 done
                         """.trimIndent(),
                         codeLanguage = "bash",
@@ -1352,10 +1352,10 @@ sudo rsync -e 'sh -c "sh 0<&2 1>&2"' 127.0.0.1:/dev/null
                         """.trimIndent(),
                         codeExample = """
 #!/usr/bin/env python3
-"""
+${"\"\"\""}
 Linux privilege escalation checker.
 Run on your own systems / CTF machines only.
-"""
+${"\"\"\""}
 import os, subprocess, stat
 
 def check_suid_bins():
@@ -1589,7 +1589,8 @@ ufw status verbose
                         """.trimIndent(),
                         codeExample = """
 #!/usr/bin/env python3
-"""Audit iptables rules for common misconfigurations."""
+${"\"\"\""}Audit iptables rules for common misconfigurations.${"\"\"\""}
+
 import subprocess
 
 def audit_iptables():
@@ -1702,15 +1703,14 @@ import re
 from collections import Counter
 from datetime import datetime
 
-SAMPLE_LOG = """
+SAMPLE_LOG = ${"\"\"\""}
 Oct 16 03:12:01 server sshd[1234]: Failed password for root from 45.33.32.156 port 54321 ssh2
 Oct 16 03:12:03 server sshd[1234]: Failed password for root from 45.33.32.156 port 54322 ssh2
 Oct 16 03:12:05 server sshd[1234]: Failed password for admin from 45.33.32.156 port 54323 ssh2
 Oct 16 03:12:07 server sshd[1235]: Accepted password for deploy from 10.0.1.5 port 22 ssh2
 Oct 16 03:13:01 server sshd[1234]: Failed password for root from 198.51.100.7 port 11111 ssh2
 Oct 16 03:15:22 server sshd[1236]: Accepted publickey for alice from 192.168.1.45 port 22 ssh2
-""".strip()
-
+${"\"\"\""}  .strip()
 def analyse_ssh_logs(log: str):
     failed   = re.findall(r'Failed password for (\S+) from (\S+)', log)
     accepted = re.findall(r'Accepted \S+ for (\S+) from (\S+)', log)

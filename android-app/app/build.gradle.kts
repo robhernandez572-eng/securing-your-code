@@ -44,6 +44,16 @@ android {
     }
 }
 
+configurations.all {
+    resolutionStrategy {
+        // kotlin-stdlib-jdk7/jdk8 were merged into kotlin-stdlib in Kotlin 1.9.20+
+        // Force substitution so transitive deps referencing old versions resolve cleanly
+        force("org.jetbrains.kotlin:kotlin-stdlib:2.0.21")
+        force("org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.0.21")
+        force("org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.0.21")
+    }
+}
+
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
