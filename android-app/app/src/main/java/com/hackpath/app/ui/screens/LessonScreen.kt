@@ -19,16 +19,19 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.hackpath.app.ui.theme.*
+import com.hackpath.app.viewmodel.GameViewModel
 import com.hackpath.app.viewmodel.LessonViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LessonScreen(
     onBack: () -> Unit,
-    vm: LessonViewModel = hiltViewModel()
+    vm: LessonViewModel = hiltViewModel(),
+    gameVm: GameViewModel = hiltViewModel()
 ) {
     val state by vm.state.collectAsState()
     val lesson = state.lesson ?: return
+    val charState by gameVm.charState.collectAsState()
 
     Scaffold(
         topBar = {
@@ -45,6 +48,11 @@ fun LessonScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = HackGreen)
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { charState.selectedCharacterId?.let { gameVm.speakVoiceLine(it) } }) {
+                        Text("🔊", fontSize = 18.sp)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = HackDark)

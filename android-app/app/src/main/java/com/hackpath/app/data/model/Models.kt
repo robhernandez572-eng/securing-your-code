@@ -70,7 +70,9 @@ data class UserProfile(
     val streak: Int = 0,
     val lastActiveDate: Long = 0L,
     val completedLessons: Int = 0,
-    val completedCourses: Int = 0
+    val completedCourses: Int = 0,
+    val characterId: String = "barbarian",
+    val difficultyLevel: String = "normal"
 ) {
     val levelTitle: String get() = when {
         level < 5  -> "Script Kiddie"

@@ -9,23 +9,51 @@ import androidx.navigation.navArgument
 import com.hackpath.app.ui.screens.*
 
 sealed class Screen(val route: String) {
-    object Home     : Screen("home")
-    object Track    : Screen("track/{trackId}") {
+    object Splash    : Screen("splash")
+    object CharSelect: Screen("char_select")
+    object DiffSelect: Screen("diff_select")
+    object Home      : Screen("home")
+    object Track     : Screen("track/{trackId}") {
         fun go(id: String) = "track/$id"
     }
-    object Course   : Screen("course/{courseId}") {
+    object Course    : Screen("course/{courseId}") {
         fun go(id: String) = "course/$id"
     }
-    object Lesson   : Screen("lesson/{lessonId}") {
+    object Lesson    : Screen("lesson/{lessonId}") {
         fun go(id: String) = "lesson/$id"
     }
-    object Profile  : Screen("profile")
+    object Profile   : Screen("profile")
 }
 
 @Composable
 fun HackPathNavGraph() {
     val nav = rememberNavController()
-    NavHost(navController = nav, startDestination = Screen.Home.route) {
+    NavHost(navController = nav, startDestination = Screen.Splash.route) {
+
+        composable(Screen.Splash.route) {
+            SplashScreen(
+                onFirstLaunch = { nav.navigate(Screen.CharSelect.route) {
+                    popUpTo(Screen.Splash.route) { inclusive = true }
+                } },
+                onReturning   = { nav.navigate(Screen.Home.route) {
+                    popUpTo(Screen.Splash.route) { inclusive = true }
+                } }
+            )
+        }
+
+        composable(Screen.CharSelect.route) {
+            CharacterSelectScreen(
+                onConfirm = { nav.navigate(Screen.DiffSelect.route) }
+            )
+        }
+
+        composable(Screen.DiffSelect.route) {
+            DifficultySelectScreen(
+                onConfirm = { nav.navigate(Screen.Home.route) {
+                    popUpTo(Screen.CharSelect.route) { inclusive = true }
+                } }
+            )
+        }
 
         composable(Screen.Home.route) {
             HomeScreen(

@@ -20,8 +20,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.hackpath.app.data.model.Difficulty
+import com.hackpath.app.data.model.RPGDifficulty
 import com.hackpath.app.data.model.Track
+import com.hackpath.app.data.repository.CharacterData
 import com.hackpath.app.ui.theme.*
+import com.hackpath.app.viewmodel.GameViewModel
 import com.hackpath.app.viewmodel.HomeViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -29,9 +32,13 @@ import com.hackpath.app.viewmodel.HomeViewModel
 fun HomeScreen(
     onTrackClick: (String) -> Unit,
     onProfileClick: () -> Unit,
-    vm: HomeViewModel = hiltViewModel()
+    vm: HomeViewModel = hiltViewModel(),
+    gameVm: GameViewModel = hiltViewModel()
 ) {
     val state by vm.state.collectAsState()
+    val charState by gameVm.charState.collectAsState()
+    val diffState by gameVm.diffState.collectAsState()
+    val character = CharacterData.findById(charState.selectedCharacterId)
 
     Scaffold(
         topBar = {
@@ -64,6 +71,15 @@ fun HomeScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            if (character != null) {
+                item {
+                    CharacterHudBanner(
+                        character  = character,
+                        difficulty = diffState.selectedDifficulty,
+                        onVoice    = { gameVm.speakVoiceLine(character.id) }
+                    )
+                }
+            }
             item {
                 XpProgressCard(
                     profile  = state.profile,
@@ -89,6 +105,57 @@ fun HomeScreen(
                     total     = total,
                     onClick   = { onTrackClick(track.id) }
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CharacterHudBanner(
+    character: com.hackpath.app.data.model.RPGCharacter,
+    difficulty: RPGDifficulty,
+    onVoice: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors   = CardDefaults.cardColors(containerColor = Color(0xFF0D0A1A)),
+        shape    = RoundedCornerShape(12.dp),
+        border   = BorderStroke(1.dp, character.primaryComposeColor.copy(0.5f))
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(52.dp)
+                    .background(
+                        androidx.compose.ui.graphics.Brush.radialGradient(
+                            listOf(character.primaryComposeColor.copy(0.3f), Color.Transparent)
+                        ),
+                        RoundedCornerShape(10.dp)
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(character.emoji, fontSize = 28.sp)
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    character.name, color = Color.White,
+                    fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 14.sp
+                )
+                Text(
+                    character.specialization, color = character.primaryComposeColor,
+                    fontFamily = FontFamily.Monospace, fontSize = 10.sp
+                )
+                Text(
+                    difficulty.realmName, color = difficulty.composeColor,
+                    fontFamily = FontFamily.Monospace, fontSize = 10.sp
+                )
+            }
+            IconButton(onClick = onVoice) {
+                Text("🔊", fontSize = 20.sp)
             }
         }
     }
