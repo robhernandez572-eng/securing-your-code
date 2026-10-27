@@ -1,0 +1,18 @@
+{
+  "canonical_url": "http://localhost:3000/.well-known/csaf/provider-metadata.json",
+  "distributions": [
+    {
+      "directory_url": "http://localhost:3000/.well-known/csaf/"
+    }
+  ],
+  "last_updated": "2024-01-01T00:00:00Z",
+  "list_on_CSAF_aggregators": false,
+  "metadata_version": "2.0",
+  "mirror_on_CSAF_aggregators": false,
+  "publisher": {
+    "category": "vendor",
+    "name": "OWASP Juice Shop",
+    "namespace": "http://localhost:3000"
+  },
+  "role": "csaf_provider"
+}
